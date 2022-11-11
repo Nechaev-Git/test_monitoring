@@ -27,7 +27,6 @@ while True:
     
     key_name = list(statistics.keys())[0]
     file_path = monitoring_files_path + key_name
-    print(file_path)
 
     try:
         with open(file_path,'r') as j:
@@ -42,7 +41,7 @@ while True:
 
             print(current_time)
             print('------------------')
-    except IOError:
-        print('no_file')
+    except IOError as e:
+        print(e)
         print('------------------')
         continue
