@@ -32,7 +32,6 @@ while True:
     mpstat_call_output = mpstat_call.stdout.read().decode('utf8')
     pidstat_call_output = pidstat_call.stdout.read().decode('utf8')
     memory_call_output = psutil.virtual_memory()
-    #print(memory_call_output)
 
     iostat_json_output = json.loads(iostat_call_output)
     mpstat_json_output = json.loads(mpstat_call_output)
