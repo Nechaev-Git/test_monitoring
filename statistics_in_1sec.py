@@ -46,7 +46,6 @@ while True:
     client_cpu_load_usr = pidstat_call_output.split('\n')[3].split()[8]
     mpstat_timestamp = mpstat_json_output['sysstat']['hosts'][0]['statistics'][0]['timestamp']
 
-    #general_memory_used = memory_call_output.used
     total_memory = memory_call_output.total
     available_memory = memory_call_output.available
     general_memory_usage_percent = memory_call_output.percent
