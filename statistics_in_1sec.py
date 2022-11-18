@@ -21,7 +21,7 @@ def net_usage(inf = "ens18"):   #change the inf variable according to the interf
 while True:
     iostat_call = subprocess.Popen(['iostat','-d','-t','-y','-o','JSON','1','1'], stdout=subprocess.PIPE)
     mpstat_call = subprocess.Popen(['mpstat','-o','JSON','1','1'], stdout=subprocess.PIPE)
-    pidstat_call = subprocess.Popen(['pidstat','-h','-u','-C','rubackup_client','1','1'], stdout=subprocess.PIPE)
+    pidstat_call = subprocess.Popen(['pidstat','-h','-u','-I','-C','rubackup_client','1','1'], stdout=subprocess.PIPE)
 
     iostat_call_output = iostat_call.stdout.read().decode('utf8')
     mpstat_call_output = mpstat_call.stdout.read().decode('utf8')
@@ -36,7 +36,7 @@ while True:
     iostat_timestamp = iostat_json_output['sysstat']['hosts'][0]['statistics'][0]['timestamp']
     
     cpu_load_usr = mpstat_json_output['sysstat']['hosts'][0]['statistics'][0]['cpu-load'][0]['usr']
-    client_cpu_load_usr = pidstat_call_output.split('\n')[3].split()[4]
+    client_cpu_load_usr = pidstat_call_output.split('\n')[3].split()[8]
     mpstat_timestamp = mpstat_json_output['sysstat']['hosts'][0]['statistics'][0]['timestamp']
 
     net_usage_output = net_usage()
