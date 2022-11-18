@@ -55,7 +55,6 @@ while True:
     client_memory_usage_percent = pidstat_call_output.split('\n')[3].split()[14]
     client_memory_usage = (total_memory / 100) * float(client_memory_usage_percent)
     client_memory_usage_m = b_to_m(client_memory_usage)
-    print(client_memory_usage_m)
 
     net_usage_output = net_usage()
 
