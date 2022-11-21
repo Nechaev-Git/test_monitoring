@@ -9,7 +9,6 @@ statistics = {}
 monitoring_files_path = "/opt/rubackup/monitoring/rubackup-stress.rubackup.local_db7963975bdae884/"
 
 def net_usage(inf = "ens18"):   #change the inf variable according to the interface
-    
     net_stat = psutil.net_io_counters(pernic=True, nowrap=True)[inf]
     net_in = net_stat.bytes_recv
     net_out = net_stat.bytes_sent
