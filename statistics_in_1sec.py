@@ -8,13 +8,25 @@ statistics = {}
 
 monitoring_files_path = "/opt/rubackup/monitoring/rubackup-stress.rubackup.local_db7963975bdae884/"
 
-for proc in psutil.process_iter():
-        if 'rubackup_client' in proc.name():
-            pid = proc.pid
+pid = None
 
-def pid_io_stat():
-    with open(f'/proc/{pid}/io') as pid_io_file:
-        stats = pid_io_file.readlines()
+def get_all_child_process():
+    global pid
+    for proc in psutil.process_iter():
+        if pid == None:
+            if 'rubackup_client' in proc.name():
+                pid = proc.pid
+                print(pid)
+    for children in psutil.Process(pid).children(recursive=True):
+        print(children.pid)
+
+get_all_child_process()
+
+print(pid)
+
+#def pid_io_stat():
+    #with open(f'/proc/{pid}/io') as pid_io_file:
+        #stats = pid_io_file.readlines()
 
 def net_usage(inf = "ens18"):   #change the inf variable according to the interface
     net_stat = psutil.net_io_counters(pernic=True, nowrap=True)[inf]
@@ -35,7 +47,8 @@ def b_to_m(b):
     return m
 
 while True:
-    #print(pid_io_stat())
+    #get_all_child_process()
+
     iostat_call = subprocess.Popen(['iostat','-d','-t','-y','-o','JSON','1','1'], stdout=subprocess.PIPE)
     mpstat_call = subprocess.Popen(['mpstat','-o','JSON','1','1'], stdout=subprocess.PIPE)
     pidstat_call = subprocess.Popen(['pidstat','-h','-u','-r','-I','-C','rubackup_client','1','1'], stdout=subprocess.PIPE)
