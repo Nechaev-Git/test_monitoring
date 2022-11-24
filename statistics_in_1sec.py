@@ -8,25 +8,29 @@ statistics = {}
 
 monitoring_files_path = "/opt/rubackup/monitoring/rubackup-stress.rubackup.local_db7963975bdae884/"
 
-pid = None
+pid_and_childs_pids = []
+
+for proc in psutil.process_iter():
+    if 'rubackup_client' in proc.name():
+        pid = proc.pid
+        pid_and_childs_pids.append(pid)
 
 def get_all_child_process():
-    global pid
-    for proc in psutil.process_iter():
-        if pid == None:
-            if 'rubackup_client' in proc.name():
-                pid = proc.pid
-                print(pid)
     for children in psutil.Process(pid).children(recursive=True):
-        print(children.pid)
+        pid_and_childs_pids.append(children.pid)
+    return pid_and_childs_pids
 
-get_all_child_process()
+def get_io_for_all_childs():
+    child_io_read_bytes = 0
+    child_io_write_bytes = 0
 
-print(pid)
+    for childs_pid in get_all_child_process():
+        child_io_read_bytes += psutil.Process(childs_pid).io_counters().read_bytes
+        child_io_write_bytes += psutil.Process(childs_pid).io_counters().write_bytes
+    
+    child_total_io_read_KB = child_io_read_bytes / 1024
+    child_total_io_write_KB = child_io_write_bytes / 1024
 
-#def pid_io_stat():
-    #with open(f'/proc/{pid}/io') as pid_io_file:
-        #stats = pid_io_file.readlines()
 
 def net_usage(inf = "ens18"):   #change the inf variable according to the interface
     net_stat = psutil.net_io_counters(pernic=True, nowrap=True)[inf]
@@ -47,7 +51,8 @@ def b_to_m(b):
     return m
 
 while True:
-    #get_all_child_process()
+    get_all_child_process()
+    print(pid_and_childs_pids)
 
     iostat_call = subprocess.Popen(['iostat','-d','-t','-y','-o','JSON','1','1'], stdout=subprocess.PIPE)
     mpstat_call = subprocess.Popen(['mpstat','-o','JSON','1','1'], stdout=subprocess.PIPE)
@@ -93,9 +98,9 @@ while True:
                              }
 
 
-    if len(statistics) < 60:
+    if len(statistics) < 6:
         continue
-    elif len(statistics) > 60:
+    elif len(statistics) > 6:
         statistics.pop(list(statistics.keys())[0])
     
     key_name = list(statistics.keys())[0]
@@ -150,9 +155,13 @@ while True:
             print('iostat_timestamp'+' '+statistics[key_name]['disk_io_usage']['iostat_timestamp'])
             print('mpstat_timestamp'+' '+statistics[key_name]['cpu_usage']['mpstat_timestamp'])
 
-            #print(current_time)
+            del pid_and_childs_pids[1:]
+            print(pid_and_childs_pids)
+
             print('------------------')
     except IOError as e:
+        del pid_and_childs_pids[1:]
+        print(pid_and_childs_pids)
         print(e)
         print('------------------')
         continue
