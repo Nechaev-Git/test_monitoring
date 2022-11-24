@@ -99,8 +99,11 @@ while True:
 
 
     if len(statistics) < 6:
+        del pid_and_childs_pids[1:]
+        print(pid_and_childs_pids)
         continue
     elif len(statistics) > 6:
+        del pid_and_childs_pids[1:]
         statistics.pop(list(statistics.keys())[0])
     
     key_name = list(statistics.keys())[0]
@@ -112,8 +115,7 @@ while True:
 
     next_net_client_rates_in = (statistics[key_name_next]['net_usage_total']['net_client_usage_r'] - statistics[key_name]['net_usage_total']['net_client_usage_r']) / 1024
     next_net_client_rates_out = (statistics[key_name_next]['net_usage_total']['net_client_usage_w'] - statistics[key_name]['net_usage_total']['net_client_usage_w']) / 1024
-    print(next_net_client_rates_out)
-    print(next_net_client_rates_in)
+    
     statistics[key_name_next]['net_usage_rates'] = {'net_recieved_KB': next_net_rates_in, 'net_sent_KB': next_net_rates_out, 'net_client_recieved_KB': next_net_client_rates_in, 'net_client_sent_KB': next_net_client_rates_out}
 
     try:
