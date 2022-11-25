@@ -3,6 +3,7 @@
 import subprocess
 import json
 import psutil
+from collections import defaultdict
 
 statistics = {}
 
@@ -77,7 +78,7 @@ while True:
     mpstat_call_output = mpstat_call.stdout.read().decode("utf8")
     pidstat_call_output = pidstat_call.stdout.read().decode("utf8")
     memory_call_output = psutil.virtual_memory()
-    print(pidstat_call_output)
+
     iostat_json_output = json.loads(iostat_call_output)
     mpstat_json_output = json.loads(mpstat_call_output)
 
@@ -105,8 +106,14 @@ while True:
     current_time = subprocess.getoutput("date +%a\ %b\ %e\ %T\ %G")
     file_name = subprocess.getoutput("date +%F-%k-%M-%S")
 
+    # current_time_call = subprocess.Popen("date", "+%a", "%b", "%e", "%T", "%G")
+    # file_name_call = subprocess.Popen("date", "+%F", "-%k", "-%M", "-%S")
+    # current_time = current_time_call.stdout.read().decode("utf8")
+    # file_name = file_name_call.stdout.read().decode("utf8")
+
     statistics[file_name] = {
         "disk_io_usage": {
+            "current_time": current_time,
             "iostat_timestamp": iostat_timestamp,
             "vda_io_usage_wrtn": vda_io_usage_wrtn,
             "vda_io_usage_read": vda_io_usage_read,
@@ -115,12 +122,12 @@ while True:
             "client_io_usage_write_KB": 0,
         },
         "net_usage_total": net_usage_output,
-        "net_usage_rates": {
-            "net_recieved_KB": 0,
-            "net_sent_KB": 0,
-            "net_client_recieved_KB": 0,
-            "net_client_sent_KB": 0,
-        },
+        "net_usage_rates": defaultdict(int),  # {
+        # "net_recieved_KB": 0,
+        # "net_sent_KB": 0,
+        # "net_client_recieved_KB": 0,
+        # "net_client_sent_KB": 0,
+        # },
         "cpu_usage": {
             "mpstat_timestamp": mpstat_timestamp,
             "cpu_load_usr": cpu_load_usr,
@@ -134,13 +141,12 @@ while True:
         },
     }
 
-    if len(statistics) < 6:
+    if len(statistics) < 2:
         del pid_and_childs_pids[1:]
-        print(pid_and_childs_pids)
         continue
-    elif len(statistics) > 6:
+    elif len(statistics) > 2:
         del pid_and_childs_pids[1:]
-        statistics.pop(list(statistics.keys())[0])
+        # statistics.pop(list(statistics.keys())[0])
 
     key_name = list(statistics.keys())[0]
     key_name_next = list(statistics.keys())[1]
@@ -172,11 +178,9 @@ while True:
         - statistics[key_name]["net_usage_total"]["net_client_usage_w"]
     ) / 1024
 
-    statistics[key_name_next]["disk_io_usage"] = {
-        "client_io_usage_read_KB": io_client_read,
-        "client_io_usage_write_KB": io_client_write,
-    }
-    print(statistics[key_name_next]["disk_io_usage"]["client_io_usage_read_KB"])
+    statistics[key_name_next]["disk_io_usage"]["client_io_usage_read_KB"] = io_client_read
+    statistics[key_name_next]["disk_io_usage"]["client_io_usage_write_KB"] = io_client_write
+
     statistics[key_name_next]["net_usage_rates"] = {
         "net_recieved_KB": next_net_rates_in,
         "net_sent_KB": next_net_rates_out,
@@ -187,8 +191,12 @@ while True:
     try:
         with open(file_path, "r") as j:
             monitoring_file_data = json.load(j)
+            print(file_path)
             print("timestamp_before" + " " + monitoring_file_data["timestamp_before"])
             print("timestamp_after" + " " + monitoring_file_data["timestamp_after"])
+            print("iostat_timestamp" + " " + statistics[key_name]["disk_io_usage"]["iostat_timestamp"])
+            print("mpstat_timestamp" + " " + statistics[key_name]["cpu_usage"]["mpstat_timestamp"])
+            print("current_time" + " " + statistics[key_name]["disk_io_usage"]["current_time"])
             print("\n")
             print("general_cpu_usage" + " " + monitoring_file_data["general_cpu_usage"])
             print("client_cpu_usage" + " " + monitoring_file_data["client_cpu_usage"])
@@ -233,13 +241,11 @@ while True:
             print("iostat_timestamp" + " " + statistics[key_name]["disk_io_usage"]["iostat_timestamp"])
             print("mpstat_timestamp" + " " + statistics[key_name]["cpu_usage"]["mpstat_timestamp"])
 
-            del pid_and_childs_pids[1:]
-            print(pid_and_childs_pids)
+            statistics.pop(list(statistics.keys())[0])
 
             print("------------------")
     except IOError as e:
-        del pid_and_childs_pids[1:]
-        print(pid_and_childs_pids)
+        statistics.pop(list(statistics.keys())[0])
         print(e)
         print("------------------")
         continue
