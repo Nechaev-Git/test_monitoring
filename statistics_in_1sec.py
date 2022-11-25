@@ -22,16 +22,21 @@ def get_all_child_process():
     return pid_and_childs_pids
 
 
-def get_io_for_all_childs():
+def get_io_for_all_childs(list_of_child_process):
     child_io_read_bytes = 0
     child_io_write_bytes = 0
 
-    for childs_pid in get_all_child_process():
+    for childs_pid in list_of_child_process:
         child_io_read_bytes += psutil.Process(childs_pid).io_counters().read_bytes
         child_io_write_bytes += psutil.Process(childs_pid).io_counters().write_bytes
 
     child_total_io_read_KB = child_io_read_bytes / 1024
     child_total_io_write_KB = child_io_write_bytes / 1024
+
+    return {
+        "child_total_io_read_KB": int(child_total_io_read_KB),
+        "child_total_io_write_KB": int(child_total_io_write_KB),
+    }
 
 
 def net_usage(inf="ens18"):  # change the inf variable according to the interface
@@ -64,7 +69,7 @@ while True:
     iostat_call = subprocess.Popen(["iostat", "-d", "-t", "-y", "-o", "JSON", "1", "1"], stdout=subprocess.PIPE)
     mpstat_call = subprocess.Popen(["mpstat", "-o", "JSON", "1", "1"], stdout=subprocess.PIPE)
     pidstat_call = subprocess.Popen(
-        ["pidstat", "-h", "-u", "-r", "-I", "-C", "rubackup_client", "1", "1"], stdout=subprocess.PIPE
+        ["pidstat", "-h", "-u", "-r", "-I", "-p", f"{pid}", "1", "1"], stdout=subprocess.PIPE
     )
     memory_output = psutil.virtual_memory()
 
@@ -72,7 +77,7 @@ while True:
     mpstat_call_output = mpstat_call.stdout.read().decode("utf8")
     pidstat_call_output = pidstat_call.stdout.read().decode("utf8")
     memory_call_output = psutil.virtual_memory()
-
+    print(pidstat_call_output)
     iostat_json_output = json.loads(iostat_call_output)
     mpstat_json_output = json.loads(mpstat_call_output)
 
@@ -80,7 +85,7 @@ while True:
     vda_io_usage_read = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["disk"][-1]["kB_read"]
     iostat_timestamp = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["timestamp"]
 
-    get_all_child_process()
+    io_client_stats = get_io_for_all_childs(get_all_child_process())
 
     cpu_load_usr = mpstat_json_output["sysstat"]["hosts"][0]["statistics"][0]["cpu-load"][0]["usr"]
     client_cpu_load_usr = pidstat_call_output.split("\n")[3].split()[8]
@@ -105,6 +110,9 @@ while True:
             "iostat_timestamp": iostat_timestamp,
             "vda_io_usage_wrtn": vda_io_usage_wrtn,
             "vda_io_usage_read": vda_io_usage_read,
+            "client_io_usage_total": io_client_stats,
+            "client_io_usage_read_KB": 0,
+            "client_io_usage_write_KB": 0,
         },
         "net_usage_total": net_usage_output,
         "net_usage_rates": {
@@ -138,6 +146,15 @@ while True:
     key_name_next = list(statistics.keys())[1]
     file_path = monitoring_files_path + key_name
 
+    io_client_read = (
+        statistics[key_name_next]["disk_io_usage"]["client_io_usage_total"]["child_total_io_read_KB"]
+        - statistics[key_name]["disk_io_usage"]["client_io_usage_total"]["child_total_io_read_KB"]
+    )
+    io_client_write = (
+        statistics[key_name_next]["disk_io_usage"]["client_io_usage_total"]["child_total_io_write_KB"]
+        - statistics[key_name]["disk_io_usage"]["client_io_usage_total"]["child_total_io_write_KB"]
+    )
+
     next_net_rates_in = (
         statistics[key_name_next]["net_usage_total"]["net_recieved"]
         - statistics[key_name]["net_usage_total"]["net_recieved"]
@@ -155,6 +172,11 @@ while True:
         - statistics[key_name]["net_usage_total"]["net_client_usage_w"]
     ) / 1024
 
+    statistics[key_name_next]["disk_io_usage"] = {
+        "client_io_usage_read_KB": io_client_read,
+        "client_io_usage_write_KB": io_client_write,
+    }
+    print(statistics[key_name_next]["disk_io_usage"]["client_io_usage_read_KB"])
     statistics[key_name_next]["net_usage_rates"] = {
         "net_recieved_KB": next_net_rates_in,
         "net_sent_KB": next_net_rates_out,
