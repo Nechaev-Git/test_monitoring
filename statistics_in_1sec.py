@@ -95,8 +95,15 @@ while True:
     vda_io_usage_read = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["disk"][-1]["kB_read"]
     iostat_timestamp = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["timestamp"]
 
-    # Get total count of disk_io_usage for rubackup_client and all childs processes
-    io_client_stats = get_io_for_all_childs(get_all_child_process())
+    # Try calculating disk_io_usage for rubackup_client and all childs processes
+    # Sometimes, if the child process no longer exists, then execution of psutil.Process(childs_pid).io_counters() may fail
+    try:
+        io_client_stats = get_io_for_all_childs(get_all_child_process())
+    except:
+        io_client_stats = {
+            "child_total_io_read_KB": "not_calculated",
+            "child_total_io_write_KB": "not_calculated",
+        }
 
     # Get general_cpu_load and cpu_load of rubackup_client process
     cpu_load_usr = mpstat_json_output["sysstat"]["hosts"][0]["statistics"][0]["cpu-load"][0]["usr"]
@@ -203,7 +210,7 @@ while True:
         "net_client_sent_KB": next_net_client_rates_out,
     }
 
-    # Try to open RuBackup monitoring file and if file is exist, then print all metrics.
+    # Try opening RuBackup monitoring file and if file is exist, then print all metrics.
     # If file not exist, then cycle started again
     try:
         with open(file_path, "r") as j:
@@ -215,12 +222,11 @@ while True:
             print("mpstat_timestamp" + " " + statistics[key_name]["cpu_usage"]["mpstat_timestamp"])
             print("current_time" + " " + statistics[key_name]["disk_io_usage"]["current_time"])
             print("\n")
-            # print("general_cpu_usage" + " " + monitoring_file_data["general_cpu_usage"])
-            # print("client_cpu_usage" + " " + monitoring_file_data["client_cpu_usage"])
-            # print("mpstat_general_cpu_load" + " " + str(statistics[key_name]["cpu_usage"]["cpu_load_usr"]))
-            # print("pidstat_client_cpu_load" + " " + str(statistics[key_name]["cpu_usage"]["client_cpu_load_usr"]))
-            # qprint(client_cpu_percent)
-            # print("\n")
+            print("general_cpu_usage" + " " + monitoring_file_data["general_cpu_usage"])
+            print("client_cpu_usage" + " " + monitoring_file_data["client_cpu_usage"])
+            print("mpstat_general_cpu_load" + " " + str(statistics[key_name]["cpu_usage"]["cpu_load_usr"]))
+            print("pidstat_client_cpu_load" + " " + str(statistics[key_name]["cpu_usage"]["client_cpu_load_usr"]))
+            print("\n")
             print("general_io_usage_r" + " " + monitoring_file_data["general_io_usage_r"])
             print("iostat_general_io_usage_r" + " " + str(statistics[key_name]["disk_io_usage"]["vda_io_usage_read"]))
             print("client_io_usage_r" + " " + monitoring_file_data["client_io_usage_r"])
@@ -243,24 +249,24 @@ while True:
             #    "net_client_recieved_KB" + " " + str(statistics[key_name]["net_usage_rates"]["net_client_recieved_KB"])
             # )
             # print("\n")
-            # print("general_ram_usage_%" + " " + monitoring_file_data["general_ram_usage"])
-            # print(
-            #    "general_memory_usage_%"
-            #    + " "
-            #    + str(statistics[key_name]["memory_usage"]["general_memory_usage_percent"])
-            # )
-            # print("client_ram_usage_%" + " " + monitoring_file_data["client_ram_usage"])
-            # print(
-            #    "client_memory_usage_%"
-            #    + " "
-            #    + str(statistics[key_name]["memory_usage"]["client_memory_usage_percent"])
-            # )
-            # print(client_memory_percent)
-            # print("general_ram_usage_m" + " " + monitoring_file_data["general_ram_usage_m"])
-            # print("general_memory_usage_m" + " " + str(statistics[key_name]["memory_usage"]["general_memory_usage_m"]))
-            # print("client_ram_usage_m" + " " + monitoring_file_data["client_ram_usage_m"])
-            # print("client_memory_usage_m" + " " + str(statistics[key_name]["memory_usage"]["client_memory_usage_m"]))
-            # print("\n")
+            print("general_ram_usage_%" + " " + monitoring_file_data["general_ram_usage"])
+            print(
+                "general_memory_usage_%"
+                + " "
+                + str(statistics[key_name]["memory_usage"]["general_memory_usage_percent"])
+            )
+            print("client_ram_usage_%" + " " + monitoring_file_data["client_ram_usage"])
+            print(
+                "client_memory_usage_%"
+                + " "
+                + str(statistics[key_name]["memory_usage"]["client_memory_usage_percent"])
+            )
+            print(client_memory_percent)
+            print("general_ram_usage_m" + " " + monitoring_file_data["general_ram_usage_m"])
+            print("general_memory_usage_m" + " " + str(statistics[key_name]["memory_usage"]["general_memory_usage_m"]))
+            print("client_ram_usage_m" + " " + monitoring_file_data["client_ram_usage_m"])
+            print("client_memory_usage_m" + " " + str(statistics[key_name]["memory_usage"]["client_memory_usage_m"]))
+            print("\n")
             # print("iostat_timestamp" + " " + statistics[key_name]["disk_io_usage"]["iostat_timestamp"])
             # print("mpstat_timestamp" + " " + statistics[key_name]["cpu_usage"]["mpstat_timestamp"])
 
