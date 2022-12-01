@@ -150,7 +150,8 @@ while True:
             "client_memory_usage_m": client_memory_usage_m,
         },
     }
-
+    # If lenght of statistics dictionary < 2, then metrics can't be calculated.
+    # If lenght less than 2, then cycle is started again and childs pids deleting from list
     if len(statistics) < 2:
         del pid_and_childs_pids[1:]
         continue
@@ -158,10 +159,12 @@ while True:
         del pid_and_childs_pids[1:]
         # statistics.pop(list(statistics.keys())[0])
 
+    # Get a first, second key name in dictionary and path to RuBackup monitoring files
     key_name = list(statistics.keys())[0]
     key_name_next = list(statistics.keys())[1]
     file_path = monitoring_files_path + key_name
 
+    # Calculating disk_io_usage of rubackup_client and childs processes
     io_client_read = (
         statistics[key_name_next]["disk_io_usage"]["client_io_usage_total"]["child_total_io_read_KB"]
         - statistics[key_name]["disk_io_usage"]["client_io_usage_total"]["child_total_io_read_KB"]
@@ -171,6 +174,7 @@ while True:
         - statistics[key_name]["disk_io_usage"]["client_io_usage_total"]["child_total_io_write_KB"]
     ) / 1024
 
+    # Calculating general_net_usage and client_net_usage
     next_net_rates_in = (
         statistics[key_name_next]["net_usage_total"]["net_recieved"]
         - statistics[key_name]["net_usage_total"]["net_recieved"]
@@ -188,6 +192,7 @@ while True:
         - statistics[key_name]["net_usage_total"]["net_client_usage_w"]
     ) / 1024
 
+    # Appendind calculated client_disk_io_usage and net_usage to dictionary
     statistics[key_name_next]["disk_io_usage"]["client_io_usage_read_KB"] = io_client_read
     statistics[key_name_next]["disk_io_usage"]["client_io_usage_write_KB"] = io_client_write
 
@@ -198,6 +203,8 @@ while True:
         "net_client_sent_KB": next_net_client_rates_out,
     }
 
+    # Try to open RuBackup monitoring file and if file is exist, then print all metrics.
+    # If file not exist, then cycle started again
     try:
         with open(file_path, "r") as j:
             monitoring_file_data = json.load(j)
@@ -257,6 +264,7 @@ while True:
             # print("iostat_timestamp" + " " + statistics[key_name]["disk_io_usage"]["iostat_timestamp"])
             # print("mpstat_timestamp" + " " + statistics[key_name]["cpu_usage"]["mpstat_timestamp"])
 
+            # Deleting first record in dictionary
             statistics.pop(list(statistics.keys())[0])
 
             print("------------------")
