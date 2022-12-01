@@ -261,7 +261,6 @@ while True:
                 + " "
                 + str(statistics[key_name]["memory_usage"]["client_memory_usage_percent"])
             )
-            print(client_memory_percent)
             print("general_ram_usage_m" + " " + monitoring_file_data["general_ram_usage_m"])
             print("general_memory_usage_m" + " " + str(statistics[key_name]["memory_usage"]["general_memory_usage_m"]))
             print("client_ram_usage_m" + " " + monitoring_file_data["client_ram_usage_m"])
