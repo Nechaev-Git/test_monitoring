@@ -237,7 +237,7 @@ while True:
             )
             print("general_io_usage_w" + " " + monitoring_file_data["general_io_usage_w"])
             print("iostat_general_io_usage_w" + " " + str(statistics[key_name]["disk_io_usage"]["vda_io_usage_wrtn"]))
-            # print("\n")
+            print("\n")
             # print("general_net_usage_w" + " " + monitoring_file_data["general_net_usage_w"])
             # print("net_sent_KB" + " " + str(statistics[key_name]["net_usage_rates"]["net_sent_KB"]))
             # print("client_net_usage_w" + " " + monitoring_file_data["client_net_usage_w"])
