@@ -96,6 +96,7 @@ while True:
     vda_io_usage_read = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["disk"][-1]["kB_read"]
     iostat_timestamp = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["timestamp"]
 
+    # Make monitoring filename from iostat timestamp
     file_name = iostat_timestamp.replace(" ", "-").replace(":", "-")
 
     # Try calculating disk_io_usage for rubackup_client and all childs processes
