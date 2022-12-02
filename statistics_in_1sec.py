@@ -248,7 +248,7 @@ while True:
             # print(
             #    "net_client_recieved_KB" + " " + str(statistics[key_name]["net_usage_rates"]["net_client_recieved_KB"])
             # )
-            # print("\n")
+            print("\n")
             print("general_ram_usage_%" + " " + monitoring_file_data["general_ram_usage"])
             print(
                 "general_memory_usage_%"
