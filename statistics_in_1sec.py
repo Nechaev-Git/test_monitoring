@@ -101,8 +101,8 @@ while True:
         io_client_stats = get_io_for_all_childs(get_all_child_process())
     except:
         io_client_stats = {
-            "child_total_io_read_KB": "not_calculated",
-            "child_total_io_write_KB": "not_calculated",
+            "child_total_io_read_KB": 0,
+            "child_total_io_write_KB": 0,
         }
 
     # Get general_cpu_load and cpu_load of rubackup_client process
