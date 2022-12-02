@@ -129,7 +129,6 @@ while True:
     net_usage_output = net_usage()
 
     current_time = subprocess.getoutput("date +%a\ %b\ %e\ %T\ %G")
-    # file_name = subprocess.getoutput("date +%F-%k-%M-%S")
 
     # The collected metrics are added to the dictionary where first level keys it is a formatted outup of "date" utility, which also is a name of monitoring file.
     statistics[file_name] = {
