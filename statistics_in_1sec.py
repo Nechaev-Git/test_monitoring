@@ -4,6 +4,7 @@ import subprocess
 import json
 import psutil
 from collections import defaultdict
+import re
 
 statistics = {}
 
@@ -95,6 +96,8 @@ while True:
     vda_io_usage_read = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["disk"][-1]["kB_read"]
     iostat_timestamp = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["timestamp"]
 
+    file_name = iostat_timestamp.replace(" ", "-").replace(":", "-")
+
     # Try calculating disk_io_usage for rubackup_client and all childs processes
     # Sometimes, if the child process no longer exists, then execution of psutil.Process(childs_pid).io_counters() may fail
     try:
@@ -116,7 +119,7 @@ while True:
     general_memory_usage_percent = memory_call_output.percent
     general_memory_usage = total_memory - available_memory
     general_memory_usage_m = b_to_m(general_memory_usage)
-    client_memory_usage_percent = pidstat_call_output.split("\n")[3].split()[14]
+    client_memory_usage_percent = pidstat_call_output.split("\n")[3].split()[13]
     client_memory_usage = (total_memory / 100) * float(client_memory_usage_percent)
     client_memory_usage_m = b_to_m(client_memory_usage)
     client_memory_percent = psutil.Process(pid).memory_percent()
@@ -125,7 +128,7 @@ while True:
     net_usage_output = net_usage()
 
     current_time = subprocess.getoutput("date +%a\ %b\ %e\ %T\ %G")
-    file_name = subprocess.getoutput("date +%F-%k-%M-%S")
+    # file_name = subprocess.getoutput("date +%F-%k-%M-%S")
 
     # The collected metrics are added to the dictionary where first level keys it is a formatted outup of "date" utility, which also is a name of monitoring file.
     statistics[file_name] = {
@@ -159,10 +162,10 @@ while True:
     }
     # If lenght of statistics dictionary < 2, then metrics can't be calculated.
     # If lenght less than 2, then cycle is started again and childs pids deleting from list
-    if len(statistics) < 2:
+    if len(statistics) < 10:
         del pid_and_childs_pids[1:]
         continue
-    elif len(statistics) > 2:
+    elif len(statistics) > 10:
         del pid_and_childs_pids[1:]
         # statistics.pop(list(statistics.keys())[0])
 
