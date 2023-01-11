@@ -5,14 +5,18 @@ import json
 import psutil
 from collections import defaultdict
 import re
+import platform
 
 statistics = {}
 
-monitoring_files_path = "/opt/rubackup/monitoring/rubackup-stress.rubackup.local_db7963975bdae884/"
-
-pid_and_childs_pids = []
+# Get the hostname and hwid to compose the path
+hostname = platform.node()
+hwid = subprocess.getoutput("/opt/rubackup/bin/rubackup_client hwid").split("\n")[2]
+monitoring_files_path = "/opt/rubackup/monitoring/" + hostname + "_" + hwid + "/"
 
 # Get pid of rubackup_client process and append it to the list of all pids(rubackup_client and childs)
+pid_and_childs_pids = []
+
 for proc in psutil.process_iter():
     if "rubackup_client" in proc.name():
         pid = proc.pid
@@ -120,10 +124,11 @@ while True:
     general_memory_usage_percent = memory_call_output.percent
     general_memory_usage = total_memory - available_memory
     general_memory_usage_m = b_to_m(general_memory_usage)
-    client_memory_usage_percent = pidstat_call_output.split("\n")[3].split()[13]
-    client_memory_usage = (total_memory / 100) * float(client_memory_usage_percent)
-    client_memory_usage_m = b_to_m(client_memory_usage)
-    client_memory_percent = psutil.Process(pid).memory_percent()
+    # client_memory_usage_percent = pidstat_call_output.split("\n")[3].split()[13]
+    # print(client_memory_usage_percent)
+    # client_memory_usage = (total_memory / 100) * 0.23
+    # client_memory_usage_m = b_to_m(client_memory_usage)
+    # client_memory_percent = psutil.Process(pid).memory_percent()
 
     # Get a dic whith net_usage_metrics
     net_usage_output = net_usage()
