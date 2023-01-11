@@ -4,7 +4,6 @@ import subprocess
 import json
 import psutil
 from collections import defaultdict
-import re
 import platform
 
 statistics = {}
@@ -161,8 +160,8 @@ while True:
         "memory_usage": {
             "general_memory_usage_m": general_memory_usage_m,
             "general_memory_usage_percent": general_memory_usage_percent,
-            "client_memory_usage_percent": client_memory_usage_percent,
-            "client_memory_usage_m": client_memory_usage_m,
+            "client_memory_usage_percent": 0,
+            "client_memory_usage_m": 0,
         },
     }
     # If lenght of statistics dictionary < 2, then metrics can't be calculated.
