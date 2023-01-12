@@ -5,7 +5,11 @@ import json
 import psutil
 from collections import defaultdict
 import platform
+import sys
 
+monitoring_period = sys.argv[1]
+
+# Creating a dictionary for collected statistics
 statistics = {}
 
 # Get the hostname and hwid to compose the path
@@ -77,8 +81,10 @@ def b_to_m(b):
 while True:
 
     # Call utilities with one secong delay that output general_disk_io_usage, general_cpu_load, client_cpu_load, client_memory_usage percent
-    iostat_call = subprocess.Popen(["iostat", "-d", "-t", "-y", "-o", "JSON", "1", "1"], stdout=subprocess.PIPE)
-    mpstat_call = subprocess.Popen(["mpstat", "-o", "JSON", "1", "1"], stdout=subprocess.PIPE)
+    iostat_call = subprocess.Popen(
+        ["iostat", "-d", "-t", "-y", "-o", "JSON", f"{monitoring_period}", "1"], stdout=subprocess.PIPE
+    )
+    mpstat_call = subprocess.Popen(["mpstat", "-o", "JSON", f"{monitoring_period}", "1"], stdout=subprocess.PIPE)
     pidstat_call = subprocess.Popen(
         ["pidstat", "-h", "-u", "-r", "-I", "-p", f"{pid}", "1", "1"], stdout=subprocess.PIPE
     )
