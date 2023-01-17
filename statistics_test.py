@@ -8,6 +8,7 @@ import platform
 import sys
 
 monitoring_period = sys.argv[1]
+cpu_count = psutil.cpu_count()
 
 # Creating a dictionary for collected statistics
 statistics = {}
@@ -22,14 +23,37 @@ pid_and_childs_pids = []
 
 for proc in psutil.process_iter():
     if "rubackup_client" in proc.name():
-        pid = proc.pid
-        pid_and_childs_pids.append(pid)
+        client_pid = proc.pid
+        pid_and_childs_pids.append(client_pid)
 
 # Get all pids of childs processes recursively
 def get_all_child_process():
-    for children in psutil.Process(pid).children(recursive=True):
+    for children in psutil.Process(client_pid).children(recursive=True):
         pid_and_childs_pids.append(children.pid)
     return pid_and_childs_pids
+
+
+def get_total_cpu_times():
+    cpu_times = psutil.cpu_times()
+    total_cpu_times = (
+        cpu_times.user
+        + cpu_times.system
+        + cpu_times.idle
+        + cpu_times.iowait
+        + cpu_times.irq
+        + cpu_times.softirq
+        + cpu_times.steal
+    )
+    return total_cpu_times
+
+
+def get_client_total_cpu_times():
+    client_times = psutil.Process(client_pid).cpu_times()
+    total_client_cpu_times = (
+        client_times.user + client_times.system + client_times.children_user + client_times.children_system
+    )
+
+    return total_client_cpu_times
 
 
 # Get total count of disk io usage for rubackup_client process and all childs in bytes and converting it to kylobytes
@@ -56,7 +80,7 @@ def net_usage(inf="ens18"):  # change the inf variable according to the interfac
     net_in = net_stat.bytes_recv
     net_out = net_stat.bytes_sent
 
-    with open(f"/proc/{pid}/net/dev") as net_dev_file:
+    with open(f"/proc/{client_pid}/net/dev") as net_dev_file:
         net_dev_stats = net_dev_file.read()
         net_client_recieve_bytes = net_dev_stats.split()[21]
         net_client_transmit_bytes = net_dev_stats.split()[28]
@@ -80,14 +104,13 @@ def b_to_m(b):
 # This is a loop that repeats every monitoring_period to collect statistics
 while True:
 
+    total_cpu_times = get_total_cpu_times()
+    total_client_cpu_times = get_client_total_cpu_times()
     # Call utilities with one secong delay that output general_disk_io_usage, general_cpu_load, client_cpu_load, client_memory_usage percent
     iostat_call = subprocess.Popen(
         ["iostat", "-d", "-t", "-y", "-o", "JSON", f"{monitoring_period}", "1"], stdout=subprocess.PIPE
     )
     mpstat_call = subprocess.Popen(["mpstat", "-o", "JSON", f"{monitoring_period}", "1"], stdout=subprocess.PIPE)
-    pidstat_call = subprocess.Popen(
-        ["pidstat", "-h", "-u", "-r", "-I", "-p", f"{pid}", "1", "1"], stdout=subprocess.PIPE
-    )
 
     # Get total count of memory usage
     memory_call_output = psutil.virtual_memory()
@@ -95,7 +118,6 @@ while True:
     # Read and decode outputs
     iostat_call_output = iostat_call.stdout.read().decode("utf8")
     mpstat_call_output = mpstat_call.stdout.read().decode("utf8")
-    pidstat_call_output = pidstat_call.stdout.read().decode("utf8")
 
     # Because iostat and mpstat outputs have JSON format there are use json.loads for read it
     iostat_json_output = json.loads(iostat_call_output)
@@ -121,7 +143,6 @@ while True:
 
     # Get general_cpu_load and cpu_load of rubackup_client process
     cpu_load_usr = mpstat_json_output["sysstat"]["hosts"][0]["statistics"][0]["cpu-load"][0]["usr"]
-    client_cpu_load_usr = pidstat_call_output.split("\n")[3].split()[8]
     mpstat_timestamp = mpstat_json_output["sysstat"]["hosts"][0]["statistics"][0]["timestamp"]
 
     # Get memory usage metrics and convert to megabytes
@@ -162,7 +183,9 @@ while True:
         "cpu_usage": {
             "mpstat_timestamp": mpstat_timestamp,
             "cpu_load_usr": cpu_load_usr,
-            "client_cpu_load_usr": client_cpu_load_usr,
+            "total_cpu_times": total_cpu_times,
+            "total_client_cpu_times": total_client_cpu_times,
+            "client_cpu_load_percent": 0,
         },
         "memory_usage": {
             "general_memory_usage_m": general_memory_usage_m,
@@ -213,9 +236,22 @@ while True:
         - statistics[key_name]["net_usage_total"]["net_client_usage_w"]
     ) / 1024
 
+    # Calculating total_cpu_times, client_cpu_times and client_cpu_usage_percent for monitoring period
+    cpu_times_period = (
+        statistics[key_name_next]["cpu_usage"]["total_cpu_times"]
+        - statistics[key_name]["cpu_usage"]["total_cpu_times"]
+    )
+    client_cpu_times_period = (
+        statistics[key_name_next]["cpu_usage"]["total_client_cpu_times"]
+        - statistics[key_name]["cpu_usage"]["total_client_cpu_times"]
+    )
+    client_cpu_load_percent = (client_cpu_times_period / (cpu_times_period / 100)) / cpu_count
+
     # Appendind calculated client_disk_io_usage and net_usage to dictionary
     statistics[key_name_next]["disk_io_usage"]["client_io_usage_read_KB"] = io_client_read
     statistics[key_name_next]["disk_io_usage"]["client_io_usage_write_KB"] = io_client_write
+
+    statistics[key_name_next]["cpu_usage"]["client_cpu_load_percent"] = client_cpu_load_percent
 
     statistics[key_name_next]["net_usage_rates"] = {
         "net_recieved_KB": next_net_rates_in,
@@ -239,7 +275,7 @@ while True:
             print("general_cpu_usage" + " " + monitoring_file_data["general_cpu_usage"])
             print("client_cpu_usage" + " " + monitoring_file_data["client_cpu_usage"])
             print("mpstat_general_cpu_load" + " " + str(statistics[key_name]["cpu_usage"]["cpu_load_usr"]))
-            print("pidstat_client_cpu_load" + " " + str(statistics[key_name]["cpu_usage"]["client_cpu_load_usr"]))
+            print("test_client_cpu_load" + " " + str(statistics[key_name]["cpu_usage"]["client_cpu_load_percent"]))
             print("\n")
             print("general_io_usage_r" + " " + monitoring_file_data["general_io_usage_r"])
             print("iostat_general_io_usage_r" + " " + str(statistics[key_name]["disk_io_usage"]["vda_io_usage_read"]))
