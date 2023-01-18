@@ -56,6 +56,18 @@ def get_client_total_cpu_times():
     return total_client_cpu_times
 
 
+def get_client_stats(list_of_child_process):
+    total_client_cpu_times = 0
+    print(list_of_child_process)
+    for child_pid in list_of_child_process:
+        child_proc = psutil.Process(child_pid)
+        with child_proc.oneshot():
+            client_times = child_proc.cpu_times()
+            total_client_cpu_times += client_times.user + client_times.system
+
+    return total_client_cpu_times
+
+
 # Get total count of disk io usage for rubackup_client process and all childs in bytes and converting it to kylobytes
 def get_io_for_all_childs(list_of_child_process):
     child_io_read_bytes = 0
@@ -105,7 +117,7 @@ def b_to_m(b):
 while True:
 
     total_cpu_times = get_total_cpu_times()
-    total_client_cpu_times = get_client_total_cpu_times()
+    # total_client_cpu_times = get_client_total_cpu_times()
     # Call utilities with one secong delay that output general_disk_io_usage, general_cpu_load, client_cpu_load, client_memory_usage percent
     iostat_call = subprocess.Popen(
         ["iostat", "-d", "-t", "-y", "-o", "JSON", f"{monitoring_period}", "1"], stdout=subprocess.PIPE
@@ -134,6 +146,7 @@ while True:
     # Try calculating disk_io_usage for rubackup_client and all childs processes
     # Sometimes, if the child process no longer exists, then execution of psutil.Process(childs_pid).io_counters() may fail
     try:
+        total_client_cpu_times = get_client_stats(get_all_child_process())
         io_client_stats = get_io_for_all_childs(get_all_child_process())
     except:
         io_client_stats = {
@@ -199,7 +212,7 @@ while True:
     if len(statistics) < 2:
         del pid_and_childs_pids[1:]
         continue
-    elif len(statistics) > 2:
+    elif len(statistics) >= 2:
         del pid_and_childs_pids[1:]
         # statistics.pop(list(statistics.keys())[0])
 
