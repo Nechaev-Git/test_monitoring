@@ -37,6 +37,7 @@ def get_total_cpu_times():
     cpu_times = psutil.cpu_times()
     total_cpu_times = (
         cpu_times.user
+        + cpu_times.nice
         + cpu_times.system
         + cpu_times.idle
         + cpu_times.iowait
