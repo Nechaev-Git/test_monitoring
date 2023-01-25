@@ -7,6 +7,9 @@ from collections import defaultdict
 import platform
 import sys
 from datetime import datetime
+from functools import reduce
+
+# from multiprocessing import Pool
 
 monitoring_period = sys.argv[1]
 cpu_count = psutil.cpu_count()
@@ -49,28 +52,32 @@ def get_total_cpu_times():
     return total_cpu_times
 
 
-def get_client_stats(list_of_child_process):
+def get_client_stats_map(proc_pid):
 
-    total_client_cpu_times = 0
-    child_total_io_read_KB = 0
-    child_total_io_write_KB = 0
+    child_proc = psutil.Process(proc_pid)
+    with child_proc.oneshot():
+        try:
+            client_times_user = child_proc.cpu_times().user
+            client_times_system = child_proc.cpu_times().system
+            child_io_read_KB = child_proc.io_counters().read_bytes / 1024
+            child_io_write_KB = child_proc.io_counters().write_bytes / 1024
 
-    for child_pid in list_of_child_process:
+            return [client_times_user + client_times_system, child_io_read_KB, child_io_write_KB]
+        except:
+            print(f"File /proc/{proc_pid}/stat doesn't exist")
+            return [0, 0, 0]
 
-        child_proc = psutil.Process(child_pid)
 
-        with child_proc.oneshot():
+def calculate_client_total_stat(list_of_child_pids):
 
-            client_times = child_proc.cpu_times()
-            total_client_cpu_times += client_times.user + client_times.system
-
-            child_total_io_read_KB += child_proc.io_counters().read_bytes / 1024
-            child_total_io_write_KB += child_proc.io_counters().write_bytes / 1024
-
+    list_of_stat = map(get_client_stats_map, list_of_child_pids)
+    list_of_stat_zipped = zip(*list_of_stat)
+    # total_list = [sum(i) for i in list_of_stat_zipped]
+    total_list = list(map(sum, list_of_stat_zipped))
     return {
-        "total_client_cpu_times": total_client_cpu_times,
-        "child_total_io_read_KB": child_total_io_read_KB,
-        "child_total_io_write_KB": child_total_io_write_KB,
+        "total_client_cpu_times": total_list[0],
+        "child_total_io_read_KB": total_list[1],
+        "child_total_io_write_KB": total_list[2],
     }
 
 
@@ -129,17 +136,9 @@ while True:
     # Try calculating disk_io_usage for rubackup_client and all childs processes
     # Sometimes, if the child process no longer exists, then execution of psutil.Process(childs_pid).io_counters() may fail
 
-    try:
-        print("before" + str(datetime.now()))
-        client_stats = get_client_stats(get_all_child_process())
-        print("after" + str(datetime.now()))
-    except:
-        print(client_stats)
-        print("not all child process is active")
-        io_client_stats = {
-            "child_total_io_read_KB": 0,
-            "child_total_io_write_KB": 0,
-        }
+    before = datetime.now()
+    client_stats = calculate_client_total_stat(get_all_child_process())
+    print("times" + str(datetime.now() - before))
 
     # Get general_cpu_load
     cpu_load_usr = mpstat_json_output["sysstat"]["hosts"][0]["statistics"][0]["cpu-load"][0]["usr"]
@@ -205,11 +204,11 @@ while True:
     io_client_read = (
         statistics[key_name_next]["client_stats"]["child_total_io_read_KB"]
         - statistics[key_name]["client_stats"]["child_total_io_read_KB"]
-    ) / 1024
+    )
     io_client_write = (
         statistics[key_name_next]["client_stats"]["child_total_io_write_KB"]
         - statistics[key_name]["client_stats"]["child_total_io_write_KB"]
-    ) / 1024
+    )
 
     # Calculating general_net_usage and client_net_usage
     next_net_rates_in = (
@@ -275,7 +274,6 @@ while True:
             print("net_sent_KB" + " " + str(statistics[key_name]["net_usage_rates"]["net_sent_KB"]))
             print("general_net_usage_r" + " " + monitoring_file_data["general_net_usage_r"])
             print("net_recieved_KB" + " " + str(statistics[key_name]["net_usage_rates"]["net_recieved_KB"]))
-            print("client_net_usage_w" + " " + monitoring_file_data["client_net_usage_w"])
             print("\n")
             print("general_ram_usage_%" + " " + monitoring_file_data["general_ram_usage"])
             print(
