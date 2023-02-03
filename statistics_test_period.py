@@ -7,7 +7,6 @@ from collections import defaultdict
 import platform
 import sys
 from datetime import datetime
-from functools import reduce
 
 # from multiprocessing import Pool
 
@@ -35,6 +34,9 @@ def get_all_child_process():
     for children in psutil.Process(client_pid).children(recursive=True):
         pid_and_childs_pids.append(children.pid)
     return pid_and_childs_pids
+
+
+# def get_general_stats():
 
 
 def get_total_cpu_times():
@@ -114,12 +116,23 @@ while True:
     mpstat_call_output = mpstat_call.stdout.read().decode("utf8")
 
     total_cpu_times = get_total_cpu_times()
+    psutil_cpu_percent = psutil.cpu_percent()
 
     # Get a dic whith net_usage_metrics
     net_usage_output = get_net_usage()
 
     # Get total count of memory usage
     memory_call_output = psutil.virtual_memory()
+
+    # io general read/write bytes
+
+    io_general = psutil.disk_io_counters(perdisk=True, nowrap=True)
+    io_general_read_KB_total = io_general["sda"].read_bytes / 1024
+    io_general_write_KB_total = io_general["sda"].write_bytes / 1024
+
+    # io_general = psutil.disk_io_counters(nowrap=True)
+    # io_general_read_KB_total = io_general.read_bytes / 1024
+    # io_general_write_KB_total = io_general.write_bytes / 1024
 
     # Because iostat and mpstat outputs have JSON format there are use json.loads for read it
     iostat_json_output = json.loads(iostat_call_output)
@@ -141,7 +154,10 @@ while True:
     print("times" + str(datetime.now() - before))
 
     # Get general_cpu_load
-    cpu_load_usr = mpstat_json_output["sysstat"]["hosts"][0]["statistics"][0]["cpu-load"][0]["usr"]
+    cpu_load_usr = 100 - (
+        mpstat_json_output["sysstat"]["hosts"][0]["statistics"][0]["cpu-load"][0]["idle"]
+        + mpstat_json_output["sysstat"]["hosts"][0]["statistics"][0]["cpu-load"][0]["iowait"]
+    )
     mpstat_timestamp = mpstat_json_output["sysstat"]["hosts"][0]["statistics"][0]["timestamp"]
 
     # Get memory usage metrics and convert to megabytes
@@ -155,7 +171,7 @@ while True:
     # client_memory_usage = (total_memory / 100) * 0.23
     # client_memory_usage_m = b_to_m(client_memory_usage)
     # client_memory_percent = psutil.Process(pid).memory_percent()
-    psutil_cpu_percent = psutil.cpu_percent()
+
     current_time = str(datetime.now())
 
     # The collected metrics are added to the dictionary where first level keys it is a formatted outup of "date" utility, which also is a name of monitoring file.
@@ -163,8 +179,10 @@ while True:
         "disk_io_usage": {
             "current_time": current_time,
             "iostat_timestamp": iostat_timestamp,
-            "vda_io_usage_wrtn": vda_io_usage_wrtn,
-            "vda_io_usage_read": vda_io_usage_read,
+            "io_general_write_KB_total": io_general_write_KB_total,
+            "io_general_read_KB_total": io_general_read_KB_total,
+            "io_general_write_KB_period": 0,
+            "io_general_read_KB_period": 0,
             "client_io_usage_read_KB": 0,
             "client_io_usage_write_KB": 0,
         },
@@ -201,6 +219,16 @@ while True:
     file_path = monitoring_files_path + key_name
 
     # Calculating disk_io_usage of rubackup_client and childs processes
+    io_general_read_KB_period = (
+        statistics[key_name_next]["disk_io_usage"]["io_general_read_KB_total"]
+        - statistics[key_name]["disk_io_usage"]["io_general_read_KB_total"]
+    )
+    io_general_write_KB_period = (
+        statistics[key_name_next]["disk_io_usage"]["io_general_write_KB_total"]
+        - statistics[key_name]["disk_io_usage"]["io_general_write_KB_total"]
+    )
+
+    # Calculating disk_io_usage of rubackup_client and childs processes
     io_client_read = (
         statistics[key_name_next]["client_stats"]["child_total_io_read_KB"]
         - statistics[key_name]["client_stats"]["child_total_io_read_KB"]
@@ -230,7 +258,11 @@ while True:
     )
     client_cpu_load_percent = client_cpu_times_period / (cpu_times_period / 100)
 
-    # Appendind calculated client_disk_io_usage and net_usage to dictionary
+    # Appendind calculated disk_io_usage and net_usage to dictionary
+
+    statistics[key_name_next]["disk_io_usage"]["io_general_write_KB_period"] = io_general_write_KB_period
+    statistics[key_name_next]["disk_io_usage"]["io_general_read_KB_period"] = io_general_read_KB_period
+
     statistics[key_name_next]["disk_io_usage"]["client_io_usage_read_KB"] = io_client_read
     statistics[key_name_next]["disk_io_usage"]["client_io_usage_write_KB"] = io_client_write
 
@@ -253,44 +285,44 @@ while True:
             print("mpstat_timestamp" + " " + statistics[key_name]["cpu_usage"]["mpstat_timestamp"])
             # print("current_time" + " " + statistics[key_name]["disk_io_usage"]["current_time"])
             print("\n")
-            print("psutil_cpu_percent" + " " + str(statistics[key_name]["cpu_usage"]["psutil_cpu_percent"]))
+            print("psutil_general_cpu_percent" + " " + str(statistics[key_name]["cpu_usage"]["psutil_cpu_percent"]))
             print("general_cpu_usage" + " " + monitoring_file_data["general_cpu_usage"])
             print("client_cpu_usage" + " " + monitoring_file_data["client_cpu_usage"])
             print("mpstat_general_cpu_load" + " " + str(statistics[key_name]["cpu_usage"]["cpu_load_usr"]))
             print("test_client_cpu_load" + " " + str(statistics[key_name]["cpu_usage"]["client_cpu_load_percent"]))
             print("\n")
-            print("general_io_usage_r" + " " + monitoring_file_data["general_io_usage_r"])
-            print("iostat_general_io_usage_r" + " " + str(statistics[key_name]["disk_io_usage"]["vda_io_usage_read"]))
-            print("client_io_usage_r" + " " + monitoring_file_data["client_io_usage_r"])
-            print("client_io_usage_read" + " " + str(statistics[key_name]["disk_io_usage"]["client_io_usage_read_KB"]))
-            print("client_io_usage_w" + " " + monitoring_file_data["client_io_usage_w"])
+            print("general_io_r" + " " + monitoring_file_data["general_io_usage_r"])
             print(
-                "client_io_usage_write" + " " + str(statistics[key_name]["disk_io_usage"]["client_io_usage_write_KB"])
+                "psutil_general_io_r" + " " + str(statistics[key_name]["disk_io_usage"]["io_general_read_KB_period"])
             )
-            print("general_io_usage_w" + " " + monitoring_file_data["general_io_usage_w"])
-            print("iostat_general_io_usage_w" + " " + str(statistics[key_name]["disk_io_usage"]["vda_io_usage_wrtn"]))
-            print("\n")
-            print("general_net_usage_w" + " " + monitoring_file_data["general_net_usage_w"])
-            print("net_sent_KB" + " " + str(statistics[key_name]["net_usage_rates"]["net_sent_KB"]))
-            print("general_net_usage_r" + " " + monitoring_file_data["general_net_usage_r"])
-            print("net_recieved_KB" + " " + str(statistics[key_name]["net_usage_rates"]["net_recieved_KB"]))
-            print("\n")
-            print("general_ram_usage_%" + " " + monitoring_file_data["general_ram_usage"])
+            print("client_io_r" + " " + monitoring_file_data["client_io_usage_r"])
+            print("psutil_client_io_r" + " " + str(statistics[key_name]["disk_io_usage"]["client_io_usage_read_KB"]))
+            print("client_io_w" + " " + monitoring_file_data["client_io_usage_w"])
+            print("psutil_client_io_w" + " " + str(statistics[key_name]["disk_io_usage"]["client_io_usage_write_KB"]))
+            print("general_io_w" + " " + monitoring_file_data["general_io_usage_w"])
             print(
-                "general_memory_usage_%"
+                "psutil_general_io_w" + " " + str(statistics[key_name]["disk_io_usage"]["io_general_write_KB_period"])
+            )
+            print("\n")
+            print("general_net_w" + " " + monitoring_file_data["general_net_usage_w"])
+            print("psutil_net_w" + " " + str(statistics[key_name]["net_usage_rates"]["net_sent_KB"]))
+            print("general_net_r" + " " + monitoring_file_data["general_net_usage_r"])
+            print("psutil_net_r" + " " + str(statistics[key_name]["net_usage_rates"]["net_recieved_KB"]))
+            print("\n")
+            print("general_ram_%" + " " + monitoring_file_data["general_ram_usage"])
+            print(
+                "psutil_general_ram_%"
                 + " "
                 + str(statistics[key_name]["memory_usage"]["general_memory_usage_percent"])
             )
-            print("client_ram_usage_%" + " " + monitoring_file_data["client_ram_usage"])
+            print("client_ram_%" + " " + monitoring_file_data["client_ram_usage"])
             print(
-                "client_memory_usage_%"
-                + " "
-                + str(statistics[key_name]["memory_usage"]["client_memory_usage_percent"])
+                "psutil_client_ram_%" + " " + str(statistics[key_name]["memory_usage"]["client_memory_usage_percent"])
             )
-            print("general_ram_usage_m" + " " + monitoring_file_data["general_ram_usage_m"])
-            print("general_memory_usage_m" + " " + str(statistics[key_name]["memory_usage"]["general_memory_usage_m"]))
-            print("client_ram_usage_m" + " " + monitoring_file_data["client_ram_usage_m"])
-            print("client_memory_usage_m" + " " + str(statistics[key_name]["memory_usage"]["client_memory_usage_m"]))
+            print("general_ram_m" + " " + monitoring_file_data["general_ram_usage_m"])
+            print("psutil_general_ram_m" + " " + str(statistics[key_name]["memory_usage"]["general_memory_usage_m"]))
+            print("client_ram_m" + " " + monitoring_file_data["client_ram_usage_m"])
+            print("psutil_client_ram_m" + " " + str(statistics[key_name]["memory_usage"]["client_memory_usage_m"]))
             print("\n")
 
             # Deleting first record in dictionary
