@@ -7,9 +7,11 @@ import matplotlib.pyplot as plt
 
 statistics = {}
 
+# Reading the file that contains result of test, splits parameters and add values to dict
+
 
 def parse_stats():
-    with open("/home/u/test_monitoring/statistics5min") as stats:
+    with open("/home/u/test_monitoring/statistics") as stats:
         list_stats = stats.readlines()
     for line in list_stats:
         parsed_line = line.replace("\n", "").split()
@@ -24,6 +26,9 @@ def parse_stats():
                 ]
             else:
                 statistics[parsed_line[0]].append(parsed_line[1])
+
+
+# Creating a plot for a parameter passed to a function.
 
 
 def make_plot(monitoring_parameter):
@@ -49,4 +54,4 @@ def make_plot(monitoring_parameter):
 
 
 parse_stats()
-make_plot("net_r")
+make_plot("general_ram_%")
