@@ -32,6 +32,7 @@ def parse_stats():
 
 
 def make_plot(monitoring_parameter):
+    print(len(statistics["general_cpu_usage"]))
     fig = plt.figure(figsize=(35, 10))
     plt.grid()
     plt.yticks(fontsize=6)
@@ -54,4 +55,4 @@ def make_plot(monitoring_parameter):
 
 
 parse_stats()
-make_plot("general_ram_%")
+make_plot("general_ram_m")

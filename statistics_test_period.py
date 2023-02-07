@@ -8,8 +8,6 @@ import platform
 import sys
 from datetime import datetime
 
-# from multiprocessing import Pool
-
 monitoring_period = sys.argv[1]
 cpu_count = psutil.cpu_count()
 
@@ -36,9 +34,7 @@ def get_all_child_process():
     return pid_and_childs_pids
 
 
-# def get_general_stats():
-
-
+# Calculating total cpu times
 def get_total_cpu_times():
     cpu_times = psutil.cpu_times()
     total_cpu_times = (
@@ -54,22 +50,25 @@ def get_total_cpu_times():
     return total_cpu_times
 
 
+# Function, which get all clients stats
 def get_client_stats_map(proc_pid):
 
-    child_proc = psutil.Process(proc_pid)
-    with child_proc.oneshot():
-        try:
+    try:
+        child_proc = psutil.Process(proc_pid)
+        with child_proc.oneshot():
             client_times_user = child_proc.cpu_times().user
             client_times_system = child_proc.cpu_times().system
             child_io_read_KB = child_proc.io_counters().read_bytes / 1024
             child_io_write_KB = child_proc.io_counters().write_bytes / 1024
+            child_memory_KB = child_proc.memory_info().rss
 
-            return [client_times_user + client_times_system, child_io_read_KB, child_io_write_KB]
-        except:
-            print(f"File /proc/{proc_pid}/stat doesn't exist")
-            return [0, 0, 0]
+            return [client_times_user + client_times_system, child_io_read_KB, child_io_write_KB, child_memory_KB]
+    except:
+        print(f"File /proc/{proc_pid}/stat doesn't exist")
+        return [0, 0, 0, 0]
 
 
+# Get sum of all clients process statistics and all his child process, using list of all childs process statistics and theirs pids
 def calculate_client_total_stat(list_of_child_pids):
 
     list_of_stat = map(get_client_stats_map, list_of_child_pids)
@@ -80,6 +79,7 @@ def calculate_client_total_stat(list_of_child_pids):
         "total_client_cpu_times": total_list[0],
         "child_total_io_read_KB": total_list[1],
         "child_total_io_write_KB": total_list[2],
+        "child_total_memory_KB": total_list[3],
     }
 
 
@@ -89,12 +89,10 @@ def get_net_usage(inf="ens18"):  # change the inf variable according to the inte
     net_in = net_stat.bytes_recv
     net_out = net_stat.bytes_sent
 
-    net_usage_stats = {
+    return {
         "net_recieved": net_in,
         "net_sent": net_out,
     }
-
-    return net_usage_stats
 
 
 # Converting bytes to megabytes
@@ -106,16 +104,17 @@ def b_to_m(b):
 # This is a loop that repeats every monitoring_period to collect statistics
 while True:
     # Call utilities with one secong delay that output general_disk_io_usage, general_cpu_load, client_cpu_load, client_memory_usage percent
-    iostat_call = subprocess.Popen(
-        ["iostat", "-d", "-t", "-y", "-o", "JSON", f"{monitoring_period}", "1"], stdout=subprocess.PIPE
-    )
-    mpstat_call = subprocess.Popen(["mpstat", "-o", "JSON", f"{monitoring_period}", "1"], stdout=subprocess.PIPE)
+    iostat_call = subprocess.Popen(["iostat", "-d", "-t", "-y", "-o", "JSON", "1", "1"], stdout=subprocess.PIPE)
+    mpstat_call = subprocess.Popen(["mpstat", "-o", "JSON", "1", "1"], stdout=subprocess.PIPE)
 
     # Read and decode outputs
     iostat_call_output = iostat_call.stdout.read().decode("utf8")
     mpstat_call_output = mpstat_call.stdout.read().decode("utf8")
 
+    # Get total count of cpu time
     total_cpu_times = get_total_cpu_times()
+
+    # Get cpu load in percentage
     psutil_cpu_percent = psutil.cpu_percent()
 
     # Get a dic whith net_usage_metrics
@@ -124,15 +123,11 @@ while True:
     # Get total count of memory usage
     memory_call_output = psutil.virtual_memory()
 
-    # io general read/write bytes
+    # Get total count of io read/write usage
 
     io_general = psutil.disk_io_counters(perdisk=True, nowrap=True)
     io_general_read_KB_total = io_general["sda"].read_bytes / 1024
     io_general_write_KB_total = io_general["sda"].write_bytes / 1024
-
-    # io_general = psutil.disk_io_counters(nowrap=True)
-    # io_general_read_KB_total = io_general.read_bytes / 1024
-    # io_general_write_KB_total = io_general.write_bytes / 1024
 
     # Because iostat and mpstat outputs have JSON format there are use json.loads for read it
     iostat_json_output = json.loads(iostat_call_output)
@@ -143,15 +138,8 @@ while True:
     vda_io_usage_read = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["disk"][-3]["kB_read"]
     iostat_timestamp = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["timestamp"]
 
-    # Make monitoring filename from iostat timestamp
-    file_name = iostat_timestamp.replace(" ", "-").replace(":", "-")
-
-    # Try calculating disk_io_usage for rubackup_client and all childs processes
-    # Sometimes, if the child process no longer exists, then execution of psutil.Process(childs_pid).io_counters() may fail
-
-    before = datetime.now()
+    # Call the function for calculate client stats
     client_stats = calculate_client_total_stat(get_all_child_process())
-    print("times" + str(datetime.now() - before))
 
     # Get general_cpu_load
     cpu_load_usr = 100 - (
@@ -166,18 +154,17 @@ while True:
     general_memory_usage_percent = memory_call_output.percent
     general_memory_usage = total_memory - available_memory
     general_memory_usage_m = b_to_m(general_memory_usage)
-    # client_memory_usage_percent = pidstat_call_output.split("\n")[3].split()[13]
-    # print(client_memory_usage_percent)
-    # client_memory_usage = (total_memory / 100) * 0.23
-    # client_memory_usage_m = b_to_m(client_memory_usage)
-    # client_memory_percent = psutil.Process(pid).memory_percent()
 
-    current_time = str(datetime.now())
+    client_memory_usage_m = b_to_m(client_stats["child_total_memory_KB"])
+    client_memory_usage_percent = client_memory_usage_m / b_to_m(total_memory) * 100
+
+    # Make monitoring filename
+    # file_name = iostat_timestamp.replace(" ", "-").replace(":", "-")
+    file_name = str(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
 
     # The collected metrics are added to the dictionary where first level keys it is a formatted outup of "date" utility, which also is a name of monitoring file.
     statistics[file_name] = {
         "disk_io_usage": {
-            "current_time": current_time,
             "iostat_timestamp": iostat_timestamp,
             "io_general_write_KB_total": io_general_write_KB_total,
             "io_general_read_KB_total": io_general_read_KB_total,
@@ -198,8 +185,8 @@ while True:
         "memory_usage": {
             "general_memory_usage_m": general_memory_usage_m,
             "general_memory_usage_percent": general_memory_usage_percent,
-            "client_memory_usage_percent": 0,
-            "client_memory_usage_m": 0,
+            "client_memory_usage_percent": client_memory_usage_percent,
+            "client_memory_usage_m": client_memory_usage_m,
         },
         "client_stats": client_stats,
     }
@@ -211,7 +198,6 @@ while True:
         continue
     elif len(statistics) >= 2:
         del pid_and_childs_pids[1:]
-        # statistics.pop(list(statistics.keys())[0])
 
     # Get a first, second key name in dictionary and path to RuBackup monitoring files
     key_name = list(statistics.keys())[0]
@@ -258,7 +244,7 @@ while True:
     )
     client_cpu_load_percent = client_cpu_times_period / (cpu_times_period / 100)
 
-    # Appendind calculated disk_io_usage and net_usage to dictionary
+    # Appendind calculated disk_io_usage, cpu_usage and net_usage to dictionary
 
     statistics[key_name_next]["disk_io_usage"]["io_general_write_KB_period"] = io_general_write_KB_period
     statistics[key_name_next]["disk_io_usage"]["io_general_read_KB_period"] = io_general_read_KB_period
@@ -283,7 +269,6 @@ while True:
             print("timestamp_after" + " " + monitoring_file_data["timestamp_after"])
             print("iostat_timestamp" + " " + statistics[key_name]["disk_io_usage"]["iostat_timestamp"])
             print("mpstat_timestamp" + " " + statistics[key_name]["cpu_usage"]["mpstat_timestamp"])
-            # print("current_time" + " " + statistics[key_name]["disk_io_usage"]["current_time"])
             print("\n")
             print("psutil_general_cpu_percent" + " " + str(statistics[key_name]["cpu_usage"]["psutil_cpu_percent"]))
             print("general_cpu_usage" + " " + monitoring_file_data["general_cpu_usage"])
