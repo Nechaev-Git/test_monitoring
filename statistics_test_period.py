@@ -52,7 +52,6 @@ def get_total_cpu_times():
 
 # Function, which get all clients stats
 def get_client_stats_map(proc_pid):
-
     try:
         child_proc = psutil.Process(proc_pid)
         with child_proc.oneshot():
@@ -103,12 +102,10 @@ def b_to_m(b):
 
 # This is a loop that repeats every monitoring_period to collect statistics
 while True:
-    # Call utilities with one secong delay that output general_disk_io_usage, general_cpu_load, client_cpu_load, client_memory_usage percent
-    iostat_call = subprocess.Popen(["iostat", "-d", "-t", "-y", "-o", "JSON", "1", "1"], stdout=subprocess.PIPE)
-    mpstat_call = subprocess.Popen(["mpstat", "-o", "JSON", "1", "1"], stdout=subprocess.PIPE)
+    # Call mpstat with one secong delay that output general_cpu_load
+    mpstat_call = subprocess.Popen(["mpstat", "-o", "JSON", f"{monitoring_period}", "1"], stdout=subprocess.PIPE)
 
-    # Read and decode outputs
-    iostat_call_output = iostat_call.stdout.read().decode("utf8")
+    # Read and decode mpstat output
     mpstat_call_output = mpstat_call.stdout.read().decode("utf8")
 
     # Get total count of cpu time
@@ -124,19 +121,12 @@ while True:
     memory_call_output = psutil.virtual_memory()
 
     # Get total count of io read/write usage
-
     io_general = psutil.disk_io_counters(perdisk=True, nowrap=True)
     io_general_read_KB_total = io_general["sda"].read_bytes / 1024
     io_general_write_KB_total = io_general["sda"].write_bytes / 1024
 
-    # Because iostat and mpstat outputs have JSON format there are use json.loads for read it
-    iostat_json_output = json.loads(iostat_call_output)
+    # Because mpstat outputs have JSON format there are use json.loads for read it
     mpstat_json_output = json.loads(mpstat_call_output)
-
-    # Get general_disk_io_usage and timestamp from iostat output
-    vda_io_usage_wrtn = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["disk"][-3]["kB_wrtn"]
-    vda_io_usage_read = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["disk"][-3]["kB_read"]
-    iostat_timestamp = iostat_json_output["sysstat"]["hosts"][0]["statistics"][0]["timestamp"]
 
     # Call the function for calculate client stats
     client_stats = calculate_client_total_stat(get_all_child_process())
@@ -165,7 +155,6 @@ while True:
     # The collected metrics are added to the dictionary where first level keys it is a formatted outup of "date" utility, which also is a name of monitoring file.
     statistics[file_name] = {
         "disk_io_usage": {
-            "iostat_timestamp": iostat_timestamp,
             "io_general_write_KB_total": io_general_write_KB_total,
             "io_general_read_KB_total": io_general_read_KB_total,
             "io_general_write_KB_period": 0,
@@ -258,16 +247,15 @@ while True:
         "net_recieved_KB": next_net_rates_in,
         "net_sent_KB": next_net_rates_out,
     }
+
     # Try opening RuBackup monitoring file and if file is exist, then print all metrics.
     # If file not exist, then cycle started again
-
     try:
         with open(file_path, "r") as j:
             monitoring_file_data = json.load(j)
             print(file_path)
             print("timestamp_before" + " " + monitoring_file_data["timestamp_before"])
             print("timestamp_after" + " " + monitoring_file_data["timestamp_after"])
-            print("iostat_timestamp" + " " + statistics[key_name]["disk_io_usage"]["iostat_timestamp"])
             print("mpstat_timestamp" + " " + statistics[key_name]["cpu_usage"]["mpstat_timestamp"])
             print("\n")
             print("psutil_general_cpu_percent" + " " + str(statistics[key_name]["cpu_usage"]["psutil_cpu_percent"]))
