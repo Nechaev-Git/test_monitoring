@@ -197,13 +197,39 @@ def collect_stats():
 def calculate_period_stats():
     monitoring_files = listdir(monitoring_files_path)
     period_stats = {}
-    for key in general_stats.keys():
+    general_keys_list = list(general_stats.keys())
+    for key in general_keys_list:
         if key in monitoring_files:
-            period_stats[key] = defaultdict
+            end = general_keys_list.index(key) + 1
+            start = max(0, end - monitoring_period)
+            values_general = [general_stats[k] for k in general_keys_list[start:end]]
+            period_stats[key] = {}
+            period_stats[key]["general_cpu_percent"] = (
+                sum([value["cpu_percent"] for value in values_general]) / monitoring_period
+            )
+            period_stats[key]["general_net_in"] = (
+                sum([value["net_in"] for value in values_general]) / monitoring_period
+            )
+            period_stats[key]["general_net_out"] = (
+                sum([value["net_out"] for value in values_general]) / monitoring_period
+            )
+            period_stats[key]["general_io_read"] = (
+                sum([value["io_read"] for value in values_general]) / monitoring_period
+            )
+            period_stats[key]["general_io_write"] = (
+                sum([value["io_write"] for value in values_general]) / monitoring_period
+            )
+            period_stats[key]["general_memory_usage_percent"] = (
+                sum([value["memory_usage_percent"] for value in values_general]) / monitoring_period
+            )
+            period_stats[key]["general_memory_usage_m"] = (
+                sum([value["memory_usage_m"] for value in values_general]) / monitoring_period
+            )
+
     print(f"\n{period_stats}")
 
 
-while len(general_stats) <= iterations:
+while len(general_stats) < iterations:
     collect_stats()
     print(f"\rОсталось {iterations - len(general_stats)} секунд", end="")
     sleep(1)
