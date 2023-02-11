@@ -197,12 +197,13 @@ def collect_stats():
 def calculate_period_stats():
     monitoring_files = listdir(monitoring_files_path)
     period_stats = {}
-    general_keys_list = list(general_stats.keys())
-    for key in general_keys_list:
+    keys_list = list(general_stats.keys())
+    for key in keys_list:
         if key in monitoring_files:
-            end = general_keys_list.index(key) + 1
+            end = keys_list.index(key) + 1
             start = max(0, end - monitoring_period)
-            values_general = [general_stats[k] for k in general_keys_list[start:end]]
+            values_general = [general_stats[k] for k in keys_list[start:end]]
+            values_client = [client_stats[k] for k in keys_list[start:end]]
             period_stats[key] = {}
             period_stats[key]["general_cpu_percent"] = (
                 sum([value["cpu_percent"] for value in values_general]) / monitoring_period
@@ -225,8 +226,24 @@ def calculate_period_stats():
             period_stats[key]["general_memory_usage_m"] = (
                 sum([value["memory_usage_m"] for value in values_general]) / monitoring_period
             )
+            period_stats[key]["client_cpu_percent"] = (
+                sum([value["client_cpu_percent"] for value in values_client]) / monitoring_period
+            )
+            period_stats[key]["client_io_read"] = (
+                sum([value["client_io_read"] for value in values_client]) / monitoring_period
+            )
+            period_stats[key]["client_io_write"] = (
+                sum([value["client_io_write"] for value in values_client]) / monitoring_period
+            )
+            period_stats[key]["client_memory_percent"] = (
+                sum([value["client_memory_percent"] for value in values_client]) / monitoring_period
+            )
+            period_stats[key]["client_memory_m"] = (
+                sum([value["client_memory_m"] for value in values_client]) / monitoring_period
+            )
 
     print(f"\n{period_stats}")
+    print(f"\n{len(period_stats)}")
 
 
 while len(general_stats) < iterations:
