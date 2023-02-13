@@ -55,4 +55,4 @@ def make_plot(monitoring_parameter):
 
 
 parse_stats()
-make_plot("general_ram_m")
+make_plot("general_cpu")

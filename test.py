@@ -8,6 +8,7 @@ import sys
 from os import listdir
 from datetime import datetime
 from time import sleep
+from json import load as load
 
 # Сетевой интерфейс и диск для которых будет собираться статистика
 net_interface = "ens18"
@@ -194,7 +195,7 @@ def collect_stats():
     collect_client_stats(timestamp)
 
 
-def calculate_period_stats():
+def gather_period_stats():
     monitoring_files = listdir(monitoring_files_path)
     period_stats = {}
     keys_list = list(general_stats.keys())
@@ -205,45 +206,59 @@ def calculate_period_stats():
             values_general = [general_stats[k] for k in keys_list[start:end]]
             values_client = [client_stats[k] for k in keys_list[start:end]]
             period_stats[key] = {}
-            period_stats[key]["general_cpu_percent"] = (
+            period_stats[key]["psutil_general_cpu"] = (
                 sum([value["cpu_percent"] for value in values_general]) / monitoring_period
             )
-            period_stats[key]["general_net_in"] = (
+            period_stats[key]["psutil_general_net_usage_r"] = (
                 sum([value["net_in"] for value in values_general]) / monitoring_period
             )
-            period_stats[key]["general_net_out"] = (
+            period_stats[key]["psutil_general_net_usage_w"] = (
                 sum([value["net_out"] for value in values_general]) / monitoring_period
             )
-            period_stats[key]["general_io_read"] = (
+            period_stats[key]["psutil_general_io_usage_r"] = (
                 sum([value["io_read"] for value in values_general]) / monitoring_period
             )
-            period_stats[key]["general_io_write"] = (
+            period_stats[key]["psutil_general_io_usage_w"] = (
                 sum([value["io_write"] for value in values_general]) / monitoring_period
             )
-            period_stats[key]["general_memory_usage_percent"] = (
+            period_stats[key]["psutil_general_ram_usage"] = (
                 sum([value["memory_usage_percent"] for value in values_general]) / monitoring_period
             )
-            period_stats[key]["general_memory_usage_m"] = (
+            period_stats[key]["psutil_general_ram_usage_m"] = (
                 sum([value["memory_usage_m"] for value in values_general]) / monitoring_period
             )
-            period_stats[key]["client_cpu_percent"] = (
+            period_stats[key]["psutil_client_cpu"] = (
                 sum([value["client_cpu_percent"] for value in values_client]) / monitoring_period
             )
-            period_stats[key]["client_io_read"] = (
+            period_stats[key]["psutil_client_io_usage_r"] = (
                 sum([value["client_io_read"] for value in values_client]) / monitoring_period
             )
-            period_stats[key]["client_io_write"] = (
+            period_stats[key]["psutil_client_io_usage_w"] = (
                 sum([value["client_io_write"] for value in values_client]) / monitoring_period
             )
-            period_stats[key]["client_memory_percent"] = (
+            period_stats[key]["psutil_client_ram_usage"] = (
                 sum([value["client_memory_percent"] for value in values_client]) / monitoring_period
             )
-            period_stats[key]["client_memory_m"] = (
+            period_stats[key]["psutil_client_ram_usage_m"] = (
                 sum([value["client_memory_m"] for value in values_client]) / monitoring_period
             )
+            get_monitoring_data(monitoring_files_path, key, period_stats)
 
-    print(f"\n{period_stats}")
+    with open("statistics", "w") as stat_file:
+        for elements in period_stats.values():
+            for stat_name, stat_value in elements.items():
+                print(f"{stat_name} {stat_value}")
+                stat_file.write(f"{stat_name} {stat_value}\n")
+
+    # print(f"\n{period_stats}")
     print(f"\n{len(period_stats)}")
+
+
+def get_monitoring_data(monitoring_files_path, key, period_stats):
+    with open(monitoring_files_path + key, "r") as j:
+        monitoring_file_data = load(j)
+        for stat_name in monitoring_file_data:
+            period_stats[key][stat_name] = monitoring_file_data[stat_name]
 
 
 while len(general_stats) < iterations:
@@ -251,4 +266,4 @@ while len(general_stats) < iterations:
     print(f"\rОсталось {iterations - len(general_stats)} секунд", end="")
     sleep(1)
 
-calculate_period_stats()
+gather_period_stats()
