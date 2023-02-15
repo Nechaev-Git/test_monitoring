@@ -73,7 +73,6 @@ def collect_general_stats(timestamp):
         "io_write": io_write_Kb,
         "memory_usage_percent": memory_usage_percent,
         "memory_usage_m": memory_usage_m,
-        # "cpu_percent": psutil.cpu_percent(),
     }
     # Вызывается функция для расчёта показателей, если длина словаря >= 2
     if len(general_stats_counters) >= 2:
@@ -101,14 +100,12 @@ def calculate_general_stats(timestamp, general_stats_counters, general_stats):
     delta_io_write = io_write - general_stats_counters[prev_timestamp]["io_write"]
 
     # Расчёт показателей в процентах и мегабайтах
-    # psutil_cpu_percent = general_stats_counters[timestamp]["cpu_percent"]
     cpu_usage_percent = (delta_total_use_cpu_time / delta_total_cpu_time) * 100
     memory_usage_percent = general_stats_counters[timestamp]["memory_usage_percent"]
     memory_usage_m = general_stats_counters[timestamp]["memory_usage_m"]
 
     # Добавление показателей в словарь general_stats
     general_stats[timestamp] = {}
-    # general_stats[timestamp]["psutil_cpu_percent"] = psutil_cpu_percent
     general_stats[timestamp]["cpu_percent"] = cpu_usage_percent
     general_stats[timestamp]["net_in"] = delta_net_in
     general_stats[timestamp]["net_out"] = delta_net_out
@@ -216,9 +213,6 @@ def gather_period_stats():
             values_general = [general_stats[k] for k in keys_list[start:end]]
             values_client = [client_stats[k] for k in keys_list[start:end]]
             period_stats[key] = {}
-            # period_stats[key]["psutil_general_cpu_call"] = (
-            #     sum([value["psutil_cpu_percent"] for value in values_general]) / monitoring_period
-            # )
             period_stats[key]["psutil_general_cpu"] = (
                 sum([value["cpu_percent"] for value in values_general]) / monitoring_period
             )
@@ -228,7 +222,9 @@ def gather_period_stats():
             period_stats[key]["psutil_general_io_usage_w"] = sum([value["io_write"] for value in values_general])
             period_stats[key]["psutil_general_ram_usage_%"] = general_stats[key]["memory_usage_percent"]
             period_stats[key]["psutil_general_ram_usage_m"] = general_stats[key]["memory_usage_m"]
-            period_stats[key]["psutil_client_cpu"] = client_stats[key]["client_cpu_percent"]
+            period_stats[key]["psutil_client_cpu"] = (
+                sum([value["client_cpu_percent"] for value in values_client]) / monitoring_period
+            )
             period_stats[key]["psutil_client_io_usage_r"] = sum([value["client_io_read"] for value in values_client])
             period_stats[key]["psutil_client_io_usage_w"] = sum([value["client_io_write"] for value in values_client])
             period_stats[key]["psutil_client_ram_usage_%"] = client_stats[key]["client_memory_percent"]
