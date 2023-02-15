@@ -7,9 +7,8 @@ import matplotlib.pyplot as plt
 
 statistics = {}
 
-# Reading the file that contains result of test, splits parameters and add values to dict
-
-
+# Парсинг данных из файла со статистикой. Ключи в словаре, это имена параметров.
+# Значения для ключей - это список значений этих параметров
 def parse_stats():
     with open("/home/u/test_monitoring/statistics") as stats:
         list_stats = stats.readlines()
@@ -28,15 +27,14 @@ def parse_stats():
                 statistics[parsed_line[0]].append(parsed_line[1])
 
 
-# Creating a plot for a parameter passed to a function.
-
-
+# Создание графика на основе данных из словаря statistics
 def make_plot(monitoring_parameter):
-    print(len(statistics["general_cpu_usage"]))
+    print(len(statistics["rb_general_cpu_usage"]))
     fig = plt.figure(figsize=(35, 10))
     plt.grid()
     plt.yticks(fontsize=6)
     plt.xticks(rotation=90)
+    # Отдельные настройки для оси ординат
     if "cpu" in monitoring_parameter:
         y = np.arange(1, 101)
         plt.ylim(0, 100)
@@ -55,4 +53,4 @@ def make_plot(monitoring_parameter):
 
 
 parse_stats()
-make_plot("general_cpu")
+make_plot(sys.argv[3])

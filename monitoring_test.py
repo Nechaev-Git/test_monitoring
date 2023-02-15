@@ -9,10 +9,7 @@ from os import listdir
 from datetime import datetime
 from time import sleep
 from json import load as load
-
-# Сетевой интерфейс и диск для которых будет собираться статистика
-net_interface = "ens18"
-disk = "sda"
+import re
 
 # Период мониторинга. Передаётся аргументом к скрипту
 monitoring_period = int(sys.argv[1])
@@ -49,13 +46,17 @@ def collect_general_stats(timestamp):
     total_cpu_time = sum(vals for vals in cpu_times if vals != "guest" and vals != "guest_nice")
     total_use_cpu_time = total_cpu_time - (cpu_times.idle + cpu_times.iowait)
     # net_usage
-    net_counter = psutil.net_io_counters(pernic=True, nowrap=True)[net_interface]
+    net_counter = psutil.net_io_counters(nowrap=True)
     net_in_bytes = net_counter.bytes_recv / 1024
     net_out_bytes = net_counter.bytes_sent / 1024
     # io
-    io_counter = psutil.disk_io_counters(perdisk=True, nowrap=True)
-    io_read_Kb = io_counter[disk].read_bytes / 1024
-    io_write_Kb = io_counter[disk].write_bytes / 1024
+    disk_name_pattern = re.compile(r"^[a-z]d[a-z]+$")
+    io_counters = psutil.disk_io_counters(perdisk=True, nowrap=True)
+    io_counters_block = {
+        disk_name: value for disk_name, value in io_counters.items() if disk_name_pattern.match(disk_name)
+    }
+    io_read_Kb = sum(disk["read_bytes"] for disk in io_counters_block.values()) / 1024
+    io_write_Kb = sum(disk["write_bytes"] for disk in io_counters_block.values()) / 1024
     # memory
     memory_stats = psutil.virtual_memory()
     total_memory = memory_stats.total
@@ -72,6 +73,7 @@ def collect_general_stats(timestamp):
         "io_write": io_write_Kb,
         "memory_usage_percent": memory_usage_percent,
         "memory_usage_m": memory_usage_m,
+        # "cpu_percent": psutil.cpu_percent(),
     }
     # Вызывается функция для расчёта показателей, если длина словаря >= 2
     if len(general_stats_counters) >= 2:
@@ -99,12 +101,14 @@ def calculate_general_stats(timestamp, general_stats_counters, general_stats):
     delta_io_write = io_write - general_stats_counters[prev_timestamp]["io_write"]
 
     # Расчёт показателей в процентах и мегабайтах
+    # psutil_cpu_percent = general_stats_counters[timestamp]["cpu_percent"]
     cpu_usage_percent = (delta_total_use_cpu_time / delta_total_cpu_time) * 100
     memory_usage_percent = general_stats_counters[timestamp]["memory_usage_percent"]
     memory_usage_m = general_stats_counters[timestamp]["memory_usage_m"]
 
     # Добавление показателей в словарь general_stats
     general_stats[timestamp] = {}
+    # general_stats[timestamp]["psutil_cpu_percent"] = psutil_cpu_percent
     general_stats[timestamp]["cpu_percent"] = cpu_usage_percent
     general_stats[timestamp]["net_in"] = delta_net_in
     general_stats[timestamp]["net_out"] = delta_net_out
@@ -116,7 +120,7 @@ def calculate_general_stats(timestamp, general_stats_counters, general_stats):
 
 # Функция используется внутри функции calculate_client_total_stat и считает статистику для одного процесса
 # по всем показателям
-def get_clients_stats(proc_pid):
+def get_clients_stats(proc_pid, timestamp):
     try:
         child_proc = psutil.Process(proc_pid)
         with child_proc.oneshot():
@@ -128,6 +132,7 @@ def get_clients_stats(proc_pid):
 
             return [client_times_user + client_times_system, child_io_read_KB, child_io_write_KB, child_memory_m]
     except:
+        print(f"{timestamp}")
         print(f"File /proc/{proc_pid}/stat doesn't exist")
         return [0, 0, 0, 0]
 
@@ -195,70 +200,61 @@ def collect_stats():
     collect_client_stats(timestamp)
 
 
+# Подсчёт статистики за указанный период
 def gather_period_stats():
     monitoring_files = listdir(monitoring_files_path)
     period_stats = {}
     keys_list = list(general_stats.keys())
     for key in keys_list:
+        # Поиск ключей в списке со статистикой, которые совпадают с имеющимися файлами мониторинга
         if key in monitoring_files:
             end = keys_list.index(key) + 1
+            # max 0 установлен, чтобы не полуичлся отрицательный индекс в тех случаях, когда
+            # имя найденного файла совпадает с тем ключом в словаре, индекс которого < monitoring_period
+            # Таким образом, значения первого ключа в словаре period_stats нужно игнорировать
             start = max(0, end - monitoring_period)
             values_general = [general_stats[k] for k in keys_list[start:end]]
             values_client = [client_stats[k] for k in keys_list[start:end]]
             period_stats[key] = {}
+            # period_stats[key]["psutil_general_cpu_call"] = (
+            #     sum([value["psutil_cpu_percent"] for value in values_general]) / monitoring_period
+            # )
             period_stats[key]["psutil_general_cpu"] = (
                 sum([value["cpu_percent"] for value in values_general]) / monitoring_period
             )
-            period_stats[key]["psutil_general_net_usage_r"] = (
-                sum([value["net_in"] for value in values_general]) / monitoring_period
-            )
-            period_stats[key]["psutil_general_net_usage_w"] = (
-                sum([value["net_out"] for value in values_general]) / monitoring_period
-            )
-            period_stats[key]["psutil_general_io_usage_r"] = (
-                sum([value["io_read"] for value in values_general]) / monitoring_period
-            )
-            period_stats[key]["psutil_general_io_usage_w"] = (
-                sum([value["io_write"] for value in values_general]) / monitoring_period
-            )
-            period_stats[key]["psutil_general_ram_usage"] = (
-                sum([value["memory_usage_percent"] for value in values_general]) / monitoring_period
-            )
-            period_stats[key]["psutil_general_ram_usage_m"] = (
-                sum([value["memory_usage_m"] for value in values_general]) / monitoring_period
-            )
-            period_stats[key]["psutil_client_cpu"] = (
-                sum([value["client_cpu_percent"] for value in values_client]) / monitoring_period
-            )
-            period_stats[key]["psutil_client_io_usage_r"] = (
-                sum([value["client_io_read"] for value in values_client]) / monitoring_period
-            )
-            period_stats[key]["psutil_client_io_usage_w"] = (
-                sum([value["client_io_write"] for value in values_client]) / monitoring_period
-            )
-            period_stats[key]["psutil_client_ram_usage"] = (
-                sum([value["client_memory_percent"] for value in values_client]) / monitoring_period
-            )
-            period_stats[key]["psutil_client_ram_usage_m"] = (
-                sum([value["client_memory_m"] for value in values_client]) / monitoring_period
-            )
+            period_stats[key]["psutil_general_net_usage_r"] = sum([value["net_in"] for value in values_general])
+            period_stats[key]["psutil_general_net_usage_w"] = sum([value["net_out"] for value in values_general])
+            period_stats[key]["psutil_general_io_usage_r"] = sum([value["io_read"] for value in values_general])
+            period_stats[key]["psutil_general_io_usage_w"] = sum([value["io_write"] for value in values_general])
+            period_stats[key]["psutil_general_ram_usage_%"] = general_stats[key]["memory_usage_percent"]
+            period_stats[key]["psutil_general_ram_usage_m"] = general_stats[key]["memory_usage_m"]
+            period_stats[key]["psutil_client_cpu"] = client_stats[key]["client_cpu_percent"]
+            period_stats[key]["psutil_client_io_usage_r"] = sum([value["client_io_read"] for value in values_client])
+            period_stats[key]["psutil_client_io_usage_w"] = sum([value["client_io_write"] for value in values_client])
+            period_stats[key]["psutil_client_ram_usage_%"] = client_stats[key]["client_memory_percent"]
+            period_stats[key]["psutil_client_ram_usage_m"] = client_stats[key]["client_memory_m"]
+
             get_monitoring_data(monitoring_files_path, key, period_stats)
-
+    # Запись подсчитанной статистики за период в файл statistics
     with open("statistics", "w") as stat_file:
-        for elements in period_stats.values():
-            for stat_name, stat_value in elements.items():
-                print(f"{stat_name} {stat_value}")
+        for key_name, key_value in period_stats.items():
+            stat_file.write(f"{key_name}\n")
+            for stat_name, stat_value in key_value.items():
                 stat_file.write(f"{stat_name} {stat_value}\n")
-
-    # print(f"\n{period_stats}")
-    print(f"\n{len(period_stats)}")
+            stat_file.write(f"---------\n")
 
 
+# Функция для парсинга и записи данных из файла мониторинга в общий словарь со ставтистикой за период
 def get_monitoring_data(monitoring_files_path, key, period_stats):
     with open(monitoring_files_path + key, "r") as j:
         monitoring_file_data = load(j)
         for stat_name in monitoring_file_data:
-            period_stats[key][stat_name] = monitoring_file_data[stat_name]
+            # Изменяем имена параметров general и client_ram_usage, чтобы не было совпадающих шаблонов в именах параметров
+            # Для всех параметров из файла мониторинга добавляем префикс rb_, для последующей обработки при построении графика
+            if stat_name == "general_ram_usage" or stat_name == "client_ram_usage":
+                period_stats[key][f"rb_{stat_name}_%"] = monitoring_file_data[stat_name]
+            else:
+                period_stats[key][f"rb_{stat_name}"] = monitoring_file_data[stat_name]
 
 
 while len(general_stats) < iterations:
