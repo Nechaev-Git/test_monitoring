@@ -55,8 +55,8 @@ def collect_general_stats(timestamp):
     io_counters_block = {
         disk_name: value for disk_name, value in io_counters.items() if disk_name_pattern.match(disk_name)
     }
-    io_read_Kb = sum(disk["read_bytes"] for disk in io_counters_block.values()) / 1024
-    io_write_Kb = sum(disk["write_bytes"] for disk in io_counters_block.values()) / 1024
+    io_read_Kb = sum(disk.read_bytes for disk in io_counters_block.values()) / 1024
+    io_write_Kb = sum(disk.write_bytes for disk in io_counters_block.values()) / 1024
     # memory
     memory_stats = psutil.virtual_memory()
     total_memory = memory_stats.total
@@ -117,7 +117,7 @@ def calculate_general_stats(timestamp, general_stats_counters, general_stats):
 
 # Функция используется внутри функции calculate_client_total_stat и считает статистику для одного процесса
 # по всем показателям
-def get_clients_stats(proc_pid, timestamp):
+def get_clients_stats(proc_pid):
     try:
         child_proc = psutil.Process(proc_pid)
         with child_proc.oneshot():
@@ -129,7 +129,6 @@ def get_clients_stats(proc_pid, timestamp):
 
             return [client_times_user + client_times_system, child_io_read_KB, child_io_write_KB, child_memory_m]
     except:
-        print(f"{timestamp}")
         print(f"File /proc/{proc_pid}/stat doesn't exist")
         return [0, 0, 0, 0]
 
